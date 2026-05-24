@@ -527,7 +527,7 @@
         del.textContent = "✕";
         del.onclick = async (e) => {
           e.stopPropagation();
-          await fetch(`/bookmarks/${i}`, { method: "DELETE" });
+          await fetch(`/bookmarks/${b.id}`, { method: "DELETE" });
           await renderBookmarks();
         };
 

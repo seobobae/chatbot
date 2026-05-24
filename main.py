@@ -3,23 +3,34 @@ from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel
 from search import google_ai_mode_search
-import json
 import os
+import psycopg2
+from datetime import date
 
 app = FastAPI()
 templates = Jinja2Templates(directory="templates")
 
-BOOKMARK_FILE = "bookmarks.json"
+DATABASE_URL = os.getenv("DATABASE_URL")
 
-def load_bookmarks():
-    if os.path.exists(BOOKMARK_FILE):
-        with open(BOOKMARK_FILE, "r", encoding="utf-8") as f:
-            return json.load(f)
-    return []
+def get_conn():
+    return psycopg2.connect(DATABASE_URL)
 
-def save_bookmarks(bookmarks):
-    with open(BOOKMARK_FILE, "w", encoding="utf-8") as f:
-        json.dump(bookmarks, f, ensure_ascii=False, indent=2)
+def init_db():
+    conn = get_conn()
+    cur = conn.cursor()
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS bookmarks (
+            id SERIAL PRIMARY KEY,
+            query TEXT NOT NULL,
+            answer TEXT NOT NULL,
+            date TEXT NOT NULL
+        )
+    """)
+    conn.commit()
+    cur.close()
+    conn.close()
+
+init_db()
 
 class ChatRequest(BaseModel):
     message: str
@@ -27,9 +38,6 @@ class ChatRequest(BaseModel):
 class BookmarkRequest(BaseModel):
     query: str
     answer: str
-
-class BookmarkDeleteRequest(BaseModel):
-    index: int
 
 @app.get("/", response_class=HTMLResponse)
 async def index(request: Request):
@@ -45,25 +53,36 @@ async def chat(req: ChatRequest):
 
 @app.get("/bookmarks")
 async def get_bookmarks():
-    return JSONResponse(load_bookmarks())
+    conn = get_conn()
+    cur = conn.cursor()
+    cur.execute("SELECT id, query, answer, date FROM bookmarks ORDER BY id DESC LIMIT 20")
+    rows = cur.fetchall()
+    cur.close()
+    conn.close()
+    return JSONResponse([
+        {"id": r[0], "query": r[1], "answer": r[2], "date": r[3]}
+        for r in rows
+    ])
 
 @app.post("/bookmarks")
 async def add_bookmark(req: BookmarkRequest):
-    bookmarks = load_bookmarks()
-    bookmarks.insert(0, {
-        "query": req.query,
-        "answer": req.answer,
-        "date": __import__("datetime").date.today().isoformat()
-    })
-    if len(bookmarks) > 20:
-        bookmarks = bookmarks[:20]
-    save_bookmarks(bookmarks)
+    conn = get_conn()
+    cur = conn.cursor()
+    cur.execute(
+        "INSERT INTO bookmarks (query, answer, date) VALUES (%s, %s, %s)",
+        (req.query, req.answer, date.today().isoformat())
+    )
+    conn.commit()
+    cur.close()
+    conn.close()
     return JSONResponse({"status": "ok"})
 
-@app.delete("/bookmarks/{index}")
-async def delete_bookmark(index: int):
-    bookmarks = load_bookmarks()
-    if 0 <= index < len(bookmarks):
-        bookmarks.pop(index)
-        save_bookmarks(bookmarks)
+@app.delete("/bookmarks/{bookmark_id}")
+async def delete_bookmark(bookmark_id: int):
+    conn = get_conn()
+    cur = conn.cursor()
+    cur.execute("DELETE FROM bookmarks WHERE id = %s", (bookmark_id,))
+    conn.commit()
+    cur.close()
+    conn.close()
     return JSONResponse({"status": "ok"})
