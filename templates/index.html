@@ -1,0 +1,566 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Google AI Mode 챗봇</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'Segoe UI', sans-serif;
+      background: #f0f2f5;
+      display: flex;
+      justify-content: center;
+      min-height: 100vh;
+    }
+
+    .layout {
+      display: flex;
+      width: 100%;
+      max-width: 1100px;
+      gap: 16px;
+      padding: 16px;
+    }
+
+    /* 즐겨찾기 사이드바 */
+    .sidebar {
+      width: 260px;
+      background: white;
+      border-radius: 16px;
+      box-shadow: 0 4px 24px rgba(0,0,0,0.08);
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      height: 92vh;
+      position: sticky;
+      top: 16px;
+    }
+
+    .sidebar-header {
+      background: linear-gradient(135deg, #1a73e8, #0d47a1);
+      color: white;
+      padding: 16px;
+      font-size: 15px;
+      font-weight: 600;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .bookmark-list {
+      flex: 1;
+      overflow-y: auto;
+      padding: 10px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .bookmark-item {
+      background: #f8f9fa;
+      border-radius: 10px;
+      padding: 10px 12px;
+      font-size: 13px;
+      cursor: pointer;
+      border: 1px solid #e8eaed;
+      transition: all 0.2s;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .bookmark-item:hover { background: #e8f0fe; border-color: #1a73e8; }
+
+    .bookmark-text {
+      flex: 1;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      color: #333;
+    }
+
+    .bookmark-del {
+      color: #aaa;
+      font-size: 16px;
+      cursor: pointer;
+      flex-shrink: 0;
+    }
+
+    .bookmark-del:hover { color: #e53935; }
+
+    .bookmark-empty {
+      text-align: center;
+      color: #aaa;
+      font-size: 13px;
+      margin-top: 20px;
+    }
+
+    /* 채팅 영역 */
+    .chat-container {
+      flex: 1;
+      background: white;
+      border-radius: 16px;
+      box-shadow: 0 4px 24px rgba(0,0,0,0.08);
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      height: 92vh;
+    }
+
+    .chat-header {
+      background: linear-gradient(135deg, #1a73e8, #0d47a1);
+      color: white;
+      padding: 18px 24px;
+      font-size: 18px;
+      font-weight: 600;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    #chat-box {
+      flex: 1;
+      overflow-y: auto;
+      padding: 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+      scroll-behavior: smooth;
+    }
+
+    #chat-box::-webkit-scrollbar { width: 6px; }
+    #chat-box::-webkit-scrollbar-track { background: #f1f1f1; }
+    #chat-box::-webkit-scrollbar-thumb { background: #ccc; border-radius: 3px; }
+
+    .message {
+      display: flex;
+      flex-direction: column;
+      max-width: 85%;
+    }
+
+    .message.user { align-self: flex-end; align-items: flex-end; }
+    .message.bot  { align-self: flex-start; align-items: flex-start; }
+
+    .message-label {
+      font-size: 11px;
+      color: #888;
+      margin-bottom: 4px;
+    }
+
+    .message-bubble {
+      padding: 12px 16px;
+      border-radius: 16px;
+      font-size: 14px;
+      line-height: 1.7;
+      word-break: break-word;
+      position: relative;
+    }
+
+    .user .message-bubble {
+      background: #1a73e8;
+      color: white;
+      border-bottom-right-radius: 4px;
+    }
+
+    .bot .message-bubble {
+      background: #f1f3f4;
+      color: #202124;
+      border-bottom-left-radius: 4px;
+    }
+
+    .bot .message-bubble h3 {
+      font-size: 15px;
+      margin: 12px 0 6px;
+      color: #1a73e8;
+    }
+
+    .bot .message-bubble ul,
+    .bot .message-bubble ol {
+      padding-left: 20px;
+      margin: 6px 0;
+    }
+
+    .bot .message-bubble li { margin: 4px 0; }
+
+    .bot .message-bubble a {
+      color: #1a73e8;
+      text-decoration: none;
+    }
+
+    .bot .message-bubble a:hover { text-decoration: underline; }
+    .bot .message-bubble strong { font-weight: 600; }
+    .bot .message-bubble p { margin: 6px 0; }
+
+    /* 액션 버튼 (복사, 즐겨찾기) */
+    .message-actions {
+      display: flex;
+      gap: 6px;
+      margin-top: 6px;
+    }
+
+    .action-btn {
+      background: #f1f3f4;
+      border: 1px solid #e0e0e0;
+      border-radius: 20px;
+      padding: 4px 12px;
+      font-size: 12px;
+      cursor: pointer;
+      color: #555;
+      transition: all 0.2s;
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+
+    .action-btn:hover { background: #e8f0fe; color: #1a73e8; border-color: #1a73e8; }
+    .action-btn.copied { background: #e6f4ea; color: #2e7d32; border-color: #2e7d32; }
+    .action-btn.bookmarked { background: #fff8e1; color: #f57f17; border-color: #f57f17; }
+
+    /* 로딩 */
+    .typing {
+      display: flex;
+      gap: 5px;
+      padding: 14px 18px;
+      background: #f1f3f4;
+      border-radius: 16px;
+      border-bottom-left-radius: 4px;
+      width: fit-content;
+    }
+
+    .typing span {
+      width: 8px;
+      height: 8px;
+      background: #aaa;
+      border-radius: 50%;
+      animation: bounce 1.2s infinite;
+    }
+
+    .typing span:nth-child(2) { animation-delay: 0.2s; }
+    .typing span:nth-child(3) { animation-delay: 0.4s; }
+
+    @keyframes bounce {
+      0%, 60%, 100% { transform: translateY(0); }
+      30% { transform: translateY(-6px); }
+    }
+
+    .history-label {
+      text-align: center;
+      font-size: 11px;
+      color: #aaa;
+      margin: 4px 0;
+    }
+
+    /* 입력창 */
+    .input-area {
+      padding: 16px 20px;
+      border-top: 1px solid #e8eaed;
+      display: flex;
+      gap: 10px;
+      background: white;
+    }
+
+    #msg {
+      flex: 1;
+      padding: 12px 16px;
+      border: 1.5px solid #e0e0e0;
+      border-radius: 24px;
+      font-size: 14px;
+      outline: none;
+      transition: border 0.2s;
+    }
+
+    #msg:focus { border-color: #1a73e8; }
+
+    button {
+      padding: 12px 22px;
+      background: #1a73e8;
+      color: white;
+      border: none;
+      border-radius: 24px;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+
+    button:hover { background: #1557b0; }
+    button:disabled { background: #ccc; cursor: not-allowed; }
+
+    .clear-btn {
+      padding: 12px 16px;
+      background: #f1f3f4;
+      color: #555;
+      font-weight: 500;
+    }
+
+    .clear-btn:hover { background: #e0e0e0; }
+
+    /* 모바일 */
+    @media (max-width: 768px) {
+      body { background: white; }
+
+      .layout {
+        flex-direction: column;
+        padding: 0;
+        gap: 0;
+      }
+
+      .sidebar {
+        width: 100%;
+        height: auto;
+        max-height: 200px;
+        border-radius: 0;
+        position: static;
+        box-shadow: none;
+        border-bottom: 1px solid #e8eaed;
+      }
+
+      .chat-container {
+        border-radius: 0;
+        height: calc(100vh - 200px);
+        box-shadow: none;
+      }
+
+      .chat-header { font-size: 15px; padding: 14px 16px; }
+
+      .message { max-width: 92%; }
+
+      #msg { font-size: 16px; }
+
+      button { padding: 12px 16px; font-size: 13px; }
+    }
+  </style>
+</head>
+<body>
+  <div class="layout">
+
+    <!-- 즐겨찾기 사이드바 -->
+    <div class="sidebar">
+      <div class="sidebar-header">⭐ 즐겨찾기</div>
+      <div class="bookmark-list" id="bookmark-list">
+        <div class="bookmark-empty">즐겨찾기가 없습니다</div>
+      </div>
+    </div>
+
+    <!-- 채팅 -->
+    <div class="chat-container">
+      <div class="chat-header">
+        <span>🔍</span> Google AI Mode 챗봇
+      </div>
+
+      <div id="chat-box">
+        <div class="history-label">대화를 시작하세요!</div>
+      </div>
+
+      <div class="input-area">
+        <input id="msg" type="text" placeholder="검색할 내용을 입력하세요..." autocomplete="off"/>
+        <button class="clear-btn" onclick="clearChat()">🗑️</button>
+        <button id="send-btn" onclick="sendMessage()">전송</button>
+      </div>
+    </div>
+
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+
+  <script>
+    let chatHistory = JSON.parse(localStorage.getItem("chatHistory") || "[]");
+    let bookmarks = JSON.parse(localStorage.getItem("bookmarks") || "[]");
+
+    window.onload = () => {
+      renderBookmarks();
+      if (chatHistory.length > 0) {
+        document.querySelector(".history-label").textContent = "이전 대화 기록";
+        chatHistory.forEach(item => {
+          renderMessage("user", item.user, false);
+          renderMessage("bot", item.bot, false);
+        });
+      }
+    };
+
+    async function sendMessage() {
+      const input = document.getElementById("msg");
+      const btn = document.getElementById("send-btn");
+      const message = input.value.trim();
+      if (!message) return;
+
+      renderMessage("user", message, true);
+      input.value = "";
+      btn.disabled = true;
+
+      const loadingEl = addLoading();
+
+      try {
+        const res = await fetch("/chat", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ message })
+        });
+
+        const data = await res.json();
+        loadingEl.remove();
+        renderMessage("bot", data.reply, true, message);
+
+        chatHistory.push({ user: message, bot: data.reply });
+        localStorage.setItem("chatHistory", JSON.stringify(chatHistory));
+
+      } catch (e) {
+        loadingEl.remove();
+        renderMessage("bot", "오류가 발생했습니다. 다시 시도해주세요.", true);
+      }
+
+      btn.disabled = false;
+      input.focus();
+    }
+
+    function renderMessage(role, text, scroll = true, query = "") {
+      const box = document.getElementById("chat-box");
+      const wrapper = document.createElement("div");
+      wrapper.className = `message ${role}`;
+
+      const label = document.createElement("div");
+      label.className = "message-label";
+      label.textContent = role === "user" ? "나" : "🤖 AI";
+
+      const bubble = document.createElement("div");
+      bubble.className = "message-bubble";
+
+      if (role === "bot") {
+        bubble.innerHTML = marked.parse(text);
+        bubble.querySelectorAll("a").forEach(a => {
+          a.target = "_blank";
+          a.rel = "noopener noreferrer";
+        });
+
+        // 액션 버튼
+        const actions = document.createElement("div");
+        actions.className = "message-actions";
+
+        // 복사 버튼
+        const copyBtn = document.createElement("button");
+        copyBtn.className = "action-btn";
+        copyBtn.innerHTML = "📋 복사";
+        copyBtn.onclick = () => {
+          navigator.clipboard.writeText(text).then(() => {
+            copyBtn.innerHTML = "✅ 복사됨";
+            copyBtn.classList.add("copied");
+            setTimeout(() => {
+              copyBtn.innerHTML = "📋 복사";
+              copyBtn.classList.remove("copied");
+            }, 2000);
+          });
+        };
+
+        // 즐겨찾기 버튼
+        const bookmarkBtn = document.createElement("button");
+        bookmarkBtn.className = "action-btn";
+        bookmarkBtn.innerHTML = "⭐ 즐겨찾기";
+        bookmarkBtn.onclick = () => {
+          const q = query || text.slice(0, 30);
+          addBookmark(q, text);
+          bookmarkBtn.innerHTML = "✅ 저장됨";
+          bookmarkBtn.classList.add("bookmarked");
+          setTimeout(() => {
+            bookmarkBtn.innerHTML = "⭐ 즐겨찾기";
+            bookmarkBtn.classList.remove("bookmarked");
+          }, 2000);
+        };
+
+        actions.appendChild(copyBtn);
+        actions.appendChild(bookmarkBtn);
+        wrapper.appendChild(label);
+        wrapper.appendChild(bubble);
+        wrapper.appendChild(actions);
+
+      } else {
+        bubble.textContent = text;
+        wrapper.appendChild(label);
+        wrapper.appendChild(bubble);
+      }
+
+      box.appendChild(wrapper);
+      if (scroll) box.scrollTop = box.scrollHeight;
+    }
+
+    function addLoading() {
+      const box = document.getElementById("chat-box");
+      const wrapper = document.createElement("div");
+      wrapper.className = "message bot";
+
+      const label = document.createElement("div");
+      label.className = "message-label";
+      label.textContent = "🤖 AI";
+
+      const typing = document.createElement("div");
+      typing.className = "typing";
+      typing.innerHTML = "<span></span><span></span><span></span>";
+
+      wrapper.appendChild(label);
+      wrapper.appendChild(typing);
+      box.appendChild(wrapper);
+      box.scrollTop = box.scrollHeight;
+      return wrapper;
+    }
+
+    // 즐겨찾기 추가
+    function addBookmark(query, answer) {
+      bookmarks.unshift({ query, answer, date: new Date().toLocaleDateString() });
+      if (bookmarks.length > 20) bookmarks.pop(); // 최대 20개
+      localStorage.setItem("bookmarks", JSON.stringify(bookmarks));
+      renderBookmarks();
+    }
+
+    // 즐겨찾기 렌더링
+    function renderBookmarks() {
+      const list = document.getElementById("bookmark-list");
+      if (bookmarks.length === 0) {
+        list.innerHTML = '<div class="bookmark-empty">즐겨찾기가 없습니다</div>';
+        return;
+      }
+
+      list.innerHTML = "";
+      bookmarks.forEach((b, i) => {
+        const item = document.createElement("div");
+        item.className = "bookmark-item";
+
+        const text = document.createElement("div");
+        text.className = "bookmark-text";
+        text.textContent = `⭐ ${b.query}`;
+        text.title = b.query;
+        text.onclick = () => {
+          document.getElementById("msg").value = b.query;
+          document.getElementById("msg").focus();
+        };
+
+        const del = document.createElement("span");
+        del.className = "bookmark-del";
+        del.textContent = "✕";
+        del.onclick = (e) => {
+          e.stopPropagation();
+          bookmarks.splice(i, 1);
+          localStorage.setItem("bookmarks", JSON.stringify(bookmarks));
+          renderBookmarks();
+        };
+
+        item.appendChild(text);
+        item.appendChild(del);
+        list.appendChild(item);
+      });
+    }
+
+    function clearChat() {
+      if (!confirm("대화 기록을 모두 삭제할까요?")) return;
+      chatHistory = [];
+      localStorage.removeItem("chatHistory");
+      const box = document.getElementById("chat-box");
+      box.innerHTML = '<div class="history-label">대화를 시작하세요!</div>';
+    }
+
+    document.getElementById("msg").addEventListener("keydown", e => {
+      if (e.key === "Enter") sendMessage();
+    });
+  </script>
+</body>
+</html>
