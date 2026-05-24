@@ -23,7 +23,6 @@
       padding: 16px;
     }
 
-    /* 즐겨찾기 사이드바 */
     .sidebar {
       width: 260px;
       background: white;
@@ -97,7 +96,6 @@
       margin-top: 20px;
     }
 
-    /* 채팅 영역 */
     .chat-container {
       flex: 1;
       background: white;
@@ -193,7 +191,6 @@
     .bot .message-bubble strong { font-weight: 600; }
     .bot .message-bubble p { margin: 6px 0; }
 
-    /* 액션 버튼 (복사, 즐겨찾기) */
     .message-actions {
       display: flex;
       gap: 6px;
@@ -218,7 +215,6 @@
     .action-btn.copied { background: #e6f4ea; color: #2e7d32; border-color: #2e7d32; }
     .action-btn.bookmarked { background: #fff8e1; color: #f57f17; border-color: #f57f17; }
 
-    /* 로딩 */
     .typing {
       display: flex;
       gap: 5px;
@@ -252,7 +248,6 @@
       margin: 4px 0;
     }
 
-    /* 입력창 */
     .input-area {
       padding: 16px 20px;
       border-top: 1px solid #e8eaed;
@@ -297,7 +292,6 @@
 
     .clear-btn:hover { background: #e0e0e0; }
 
-    /* 모바일 */
     @media (max-width: 768px) {
       body { background: white; }
 
@@ -324,11 +318,8 @@
       }
 
       .chat-header { font-size: 15px; padding: 14px 16px; }
-
       .message { max-width: 92%; }
-
       #msg { font-size: 16px; }
-
       button { padding: 12px 16px; font-size: 13px; }
     }
   </style>
@@ -336,7 +327,6 @@
 <body>
   <div class="layout">
 
-    <!-- 즐겨찾기 사이드바 -->
     <div class="sidebar">
       <div class="sidebar-header">⭐ 즐겨찾기</div>
       <div class="bookmark-list" id="bookmark-list">
@@ -344,7 +334,6 @@
       </div>
     </div>
 
-    <!-- 채팅 -->
     <div class="chat-container">
       <div class="chat-header">
         <span>🔍</span> Google AI Mode 챗봇
@@ -367,10 +356,9 @@
 
   <script>
     let chatHistory = JSON.parse(localStorage.getItem("chatHistory") || "[]");
-    let bookmarks = JSON.parse(localStorage.getItem("bookmarks") || "[]");
 
-    window.onload = () => {
-      renderBookmarks();
+    window.onload = async () => {
+      await renderBookmarks();
       if (chatHistory.length > 0) {
         document.querySelector(".history-label").textContent = "이전 대화 기록";
         chatHistory.forEach(item => {
@@ -434,11 +422,9 @@
           a.rel = "noopener noreferrer";
         });
 
-        // 액션 버튼
         const actions = document.createElement("div");
         actions.className = "message-actions";
 
-        // 복사 버튼
         const copyBtn = document.createElement("button");
         copyBtn.className = "action-btn";
         copyBtn.innerHTML = "📋 복사";
@@ -453,13 +439,12 @@
           });
         };
 
-        // 즐겨찾기 버튼
         const bookmarkBtn = document.createElement("button");
         bookmarkBtn.className = "action-btn";
         bookmarkBtn.innerHTML = "⭐ 즐겨찾기";
-        bookmarkBtn.onclick = () => {
+        bookmarkBtn.onclick = async () => {
           const q = query || text.slice(0, 30);
-          addBookmark(q, text);
+          await addBookmark(q, text);
           bookmarkBtn.innerHTML = "✅ 저장됨";
           bookmarkBtn.classList.add("bookmarked");
           setTimeout(() => {
@@ -504,17 +489,20 @@
       return wrapper;
     }
 
-    // 즐겨찾기 추가
-    function addBookmark(query, answer) {
-      bookmarks.unshift({ query, answer, date: new Date().toLocaleDateString() });
-      if (bookmarks.length > 20) bookmarks.pop(); // 최대 20개
-      localStorage.setItem("bookmarks", JSON.stringify(bookmarks));
-      renderBookmarks();
+    async function addBookmark(query, answer) {
+      await fetch("/bookmarks", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ query, answer })
+      });
+      await renderBookmarks();
     }
 
-    // 즐겨찾기 렌더링
-    function renderBookmarks() {
+    async function renderBookmarks() {
       const list = document.getElementById("bookmark-list");
+      const res = await fetch("/bookmarks");
+      const bookmarks = await res.json();
+
       if (bookmarks.length === 0) {
         list.innerHTML = '<div class="bookmark-empty">즐겨찾기가 없습니다</div>';
         return;
@@ -537,11 +525,10 @@
         const del = document.createElement("span");
         del.className = "bookmark-del";
         del.textContent = "✕";
-        del.onclick = (e) => {
+        del.onclick = async (e) => {
           e.stopPropagation();
-          bookmarks.splice(i, 1);
-          localStorage.setItem("bookmarks", JSON.stringify(bookmarks));
-          renderBookmarks();
+          await fetch(`/bookmarks/${i}`, { method: "DELETE" });
+          await renderBookmarks();
         };
 
         item.appendChild(text);
